@@ -8,13 +8,13 @@ function dot_Product(A::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64
 end
 
 function orthogonal_Vec(A::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}})
-    return SVector{2,typeof(A)}(A[2], -A[1])
+    return SVector{2,eltype(A)}(A[2], -A[1])
 end
 
 #Función que nos genera un punto aleatorio en un cuadrado de semilado SL centrado en el origen.
 function arb_Point(SL::Float64)
     #Definimos la variable Site que contendrá las coordenadas del punto de interés
-    Site = MVector{2,Float64}([0.0, 0.0])
+    Site = MVector{2,Float64}(0.0, 0.0)
 
     #Llaves para determinar el cuadrante donde estará el punto
     x = rand()
@@ -50,16 +50,16 @@ function main_Cluster(NSides::Int64,
     Precision::Type,
     α::Float64,
     β::Int64,
+    #Site::Vector{Float64},
     Site::SVector{2,Float64},
     RadiusCluster::Float64)
-
     #StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
     #for i in 1:NSides
     #    StarVecs[i] = [Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))] #Vertices of the polygon with "NSides" sides
     #end
-    StarVecs = [SVector{2,Precision}((0, 0)) for i in 1:NSides] #Arrangement that will contain the star vectors
+    StarVecs = [SVector{2,Precision}(0, 0) for i in 1:NSides] #Arrangement that will contain the star vectors
     for i in 1:NSides
-        StarVecs[i] = SVector{2,Precision}([Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))]) #Vertices of the polygon with "NSides" sides
+        StarVecs[i] = SVector{2,Precision}(Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))) #Vertices of the polygon with "NSides" sides
     end
 
     AlphasA = fill(α, NSides) #Array with the alpha constants of the GDM
@@ -101,6 +101,7 @@ function local_Hood(β::Int64,
     #StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64},
+    #Site::Vector{Float64},
     Site::SVector{2,Float64},
     Precision::Type)
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
@@ -149,8 +150,8 @@ function lattice_Sites(β::Int64,
     AlphasA::Vector{Float64},
     Precision::Type)
     #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
-    SitesA = Vector{Precision}[]
-    @show length(StarVecs)
+    SitesA = SVector{2,Precision}[]
+    @assert length(StarVecs) == 7 "StarVecs is len 7"
 
     #Consideramos todas las posibles combinaciones de vectores estrella con los posibles números enteros correspondientes
     for i in 1:length(StarVecs)
@@ -159,22 +160,23 @@ function lattice_Sites(β::Int64,
             for n in -β:β
                 for m in -β:β
                     #Vamos a dejar que el try ... catch se encargue de los casos en que los vectores estrella sean paralelos
-                    try
-                        #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
-                        t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
-                        push!(SitesA, t0)
-                        push!(SitesA, t1)
-                        push!(SitesA, t2)
-                        push!(SitesA, t3)
-                    catch
-                        nothing
+                    #try
+                    #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
+                    if iseven(length(StarVecs)) && (i == (j + length(StarVecs) ÷ 2))
+                        continue
                     end
+                    t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
+                    push!(SitesA, t0)
+                    push!(SitesA, t1)
+                    push!(SitesA, t2)
+                    push!(SitesA, t3)
                 end
             end
 
         end
     end
 
+    @assert length(SitesA) > 0 "SitesA is empty"
     return SitesA
 end
 
@@ -187,7 +189,7 @@ function four_Regions(J::Int64,
     K::Int64,
     Nj::Int64,
     Nk::Int64,
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64})
     #Verifiquemos si los vectores a considerar son colineales, en cuyo caso manda un error.
     if (length(StarVecs) % 2 == 0) && (K == J + length(StarVecs) / 2)

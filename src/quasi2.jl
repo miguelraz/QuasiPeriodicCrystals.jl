@@ -53,7 +53,7 @@ function main_Cluster(NSides::Int64,
     Site::SVector{2,Float64},
     RadiusCluster::Float64)
 
-    StarVecs = [SVector{2,Precision}((0, 0)) for i in 1:NSides] #Arrangement that will contain the star vectors
+    StarVecs = [SVector{2,Precision}(0, 0) for i in 1:NSides] #Arrangement that will contain the star vectors
     for i in 1:NSides
         StarVecs[i] = SVector{2,Precision}([Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))]) #Vertices of the polygon with "NSides" sides
     end
@@ -152,16 +152,15 @@ function lattice_Sites(β::Int64,
             for n in -β:β
                 for m in -β:β
                     #Vamos a dejar que el try ... catch se encargue de los casos en que los vectores estrella sean paralelos
-                    try
-                        #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
-                        t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
-                        push!(SitesA, t0)
-                        push!(SitesA, t1)
-                        push!(SitesA, t2)
-                        push!(SitesA, t3)
-                    catch
-                        nothing
+                    #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
+                    if iseven(length(StarVecs)) && (i == (j + length(StarVecs) ÷ 2))
+                        continue
                     end
+                    t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
+                    push!(SitesA, t0)
+                    push!(SitesA, t1)
+                    push!(SitesA, t2)
+                    push!(SitesA, t3)
                 end
             end
 
