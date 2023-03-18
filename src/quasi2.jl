@@ -1,20 +1,20 @@
 ##############################################################################################################################
 ############################################################# COMMON FUNCTIONS ###############################################
 ##############################################################################################################################
-
-function dot_Product(A::Union{Vector{Float64},Vector{BigFloat}},
-    B::Union{Vector{Float64},Vector{BigFloat}})
+using StaticArrays
+function dot_Product(A::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}},
+    B::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}})
     return A[1] * B[1] + A[2] * B[2]
 end
 
-function orthogonal_Vec(A::Union{Vector{Float64},Vector{BigFloat}})
-    return [A[2], -A[1]]
+function orthogonal_Vec(A::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}})
+    return SVector{2,typeof(A)}(A[2], -A[1])
 end
 
 #Función que nos genera un punto aleatorio en un cuadrado de semilado SL centrado en el origen.
 function arb_Point(SL::Float64)
     #Definimos la variable Site que contendrá las coordenadas del punto de interés
-    Site = Vector{Float64}(undef, 2)
+    Site = MVector{2,Float64}([0.0, 0.0])
 
     #Llaves para determinar el cuadrante donde estará el punto
     x = rand()
@@ -34,7 +34,7 @@ function arb_Point(SL::Float64)
         Site[2] = -rand() * SL
     end
 
-    return Site
+    return SVector{2,Float64}(Site)
 end
 
 
@@ -50,11 +50,12 @@ function main_Cluster(NSides::Int64,
     Precision::Type,
     α::Float64,
     β::Int64,
-    Site::Vector{Float64},
+    Site::SVector{2,Float64},
     RadiusCluster::Float64)
-    StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
+
+    StarVecs = [SVector{2,Precision}((0, 0)) for i in 1:NSides] #Arrangement that will contain the star vectors
     for i in 1:NSides
-        StarVecs[i] = [Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))] #Vertices of the polygon with "NSides" sides
+        StarVecs[i] = SVector{2,Precision}([Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))]) #Vertices of the polygon with "NSides" sides
     end
 
     AlphasA = fill(α, NSides) #Array with the alpha constants of the GDM
@@ -93,9 +94,9 @@ end
 #"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64.
 function local_Hood(β::Int64,
     AvgDist::Vector{Float64},
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64},
-    Site::Vector{Float64},
+    Site::SVector{2,Float64},
     Precision::Type)
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
@@ -113,9 +114,9 @@ end
 #"Site" son las coordenadas de un punto en el espacio 2D.
 #"AvgDist" es la separación promedio entre las franjas cuasiperiódicas.
 #"StarVecs" son los vectores estrella del GDM.
-function approx_Integers(Site::Vector{Float64},
+function approx_Integers(Site::SVector{2,Float64},
     AvgDist::Vector{Float64},
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}})
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}})
     #Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
     IntegersA = Vector{Int64}(undef, length(StarVecs))
 
@@ -137,7 +138,7 @@ end
 #"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64
 function lattice_Sites(β::Int64,
     IntegersA::Vector{Int64},
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64},
     Precision::Type)
     #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)

@@ -5,7 +5,7 @@ using LinearAlgebra
 
 # Write your package code here.
 function dot_Product(A::AbstractVector{S}, B::AbstractVector{T}) where {T,S}
-    return A[1] * B[1] + A[2] * B[2]
+    A[1] * B[1] + A[2] * B[2]
 end
 function dot_Product(A::Tuple{T,T}, B::AbstractVector{S}) where {T,S}
     A[1] * B[1] + A[2] + B[2]
@@ -31,8 +31,10 @@ Base.:+(b::Int, t::Tuple{T,T}) where {T<:AbstractFloat} = (t[1] + b, t[2] + b)
 Base.:-(x::Tuple{T,T}, y::Tuple{T,T}) where {T<:AbstractFloat} = (x[1] - y[1], x[2] - y[2])
 Base.:-(t::Tuple{T,T}, b::Int) where {T<:AbstractFloat} = (t[1] - b, t[2] - b)
 Base.:-(b::Int, t::Tuple{T,T}) where {T<:AbstractFloat} = (b - t[1], b - t[2])
-Base.:-(t::Tuple{BigFloat,BigFloat}, b::Vector{Float64}) = t .- b
-Base.:-(t::Tuple{T,T}, b::Vector{T}) where {T<:AbstractFloat} = t .- b
+Base.:-(b::BigFloat, t::Tuple{T,T}) where {T<:AbstractFloat} = (b - t[1], b - t[2])
+Base.:-(t::Tuple{BigFloat,BigFloat}, b::Vector{Float64}) = (t[1] - b, t[2] - b)
+Base.:-(t::Tuple{T,T}, b::Vector{T}) where {T<:AbstractFloat} = (t[1] - b, t[2] - b)
+Base.:-(b::BigFloat, t::Vector{T}) where {T<:AbstractFloat} = (b - t[1], b - t[2])
 
 function orthogonal_Vec(A::AbstractVector{T}) where {T}
     return (A[2], -A[1])
@@ -86,21 +88,16 @@ function main_Cluster(NSides, Precision, α, β::Int, Site, RadiusCluster)
     QCSites = local_Hood(β, AvgDist, StarVecs, AlphasA, Site, Precision)
     @assert length(QCSites) > 0 "QCSites non empty"
     unique!(QCSites)
-    @show "QCSites"
-    @show length(QCSites)
-    @assert length(QCSites) > 0 "QCSites not all 0s"
+    @assert length(QCSites) > 0 "QCSites not all same"
 
 
     inside_radius = 0
     loopy = 0
     MainClusterSites = Vector{Precision}[]
     for e in QCSites
-        loopy == 0 && begin
+        if loopy == 0
             @show e
             @show Site
-            @show e - Site
-            @show norm(e - Site)
-            @show RadiusCluster
         end
         if norm(e - Site) < RadiusCluster
             push!(MainClusterSites, e)
@@ -108,12 +105,10 @@ function main_Cluster(NSides, Precision, α, β::Int, Site, RadiusCluster)
         end
         loopy += 1
     end
-    @assert inside_radius > 0 "there was at least one inside radius"
+    #@assert inside_radius > 0 "there was at least one inside radius"
 
     return MainClusterSites
 end
-
-export main_Cluster
 
 
 function approx_Integers(Site::AbstractVector{T}, AvgDist::AbstractVector{V}, StarVecs::AbstractVector{S}) where {T,V,S}
@@ -139,11 +134,13 @@ function local_Hood(β::Int64,
     Precision::V) where {T,S,V}
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
+    @show IntegersSet
     @assert length(IntegersSet) > 0 "IntegerSet non empty"
     @assert length(StarVecs) == 7 "lattice_sites receives StarVecs |> len != 7"
 
     #A partir de los valores enteros aproximados, generamos la vecindad del arreglo cuasiperiódico que contenga al punto.
     LatticeSites = lattice_Sites(β, IntegersSet, StarVecs, AlphasA, Precision)
+    @show length(LatticeSites)
     @assert length(LatticeSites) > 0 "Lattice_sites non empty"
 
     return LatticeSites
@@ -264,5 +261,4 @@ export local_Hood, approx_Integers
 export lattice_Sites
 export _c, _t
 
-export arb_Point2
 end
