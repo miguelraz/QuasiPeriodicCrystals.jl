@@ -63,13 +63,11 @@ function main_Cluster(NSides::Int64,
     #Generate the sites of the local neighborhood around the "Site" of the QuasiCrystal
     QCSites = local_Hood(β, AvgDist, StarVecs, AlphasA, Site, Precision)
     unique!(QCSites)
-    @show Site
     loopy = 0
 
     MainClusterSites = Vector{Precision}[]
     for e in QCSites
         if loopy == 0
-            @show e
             norm(e - Site)
         end
         if norm(e - Site) < RadiusCluster
@@ -100,10 +98,8 @@ function local_Hood(β::Int64,
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
 
-    @show IntegersSet
     #A partir de los valores enteros aproximados, generamos la vecindad del arreglo cuasiperiódico que contenga al punto.
     LatticeSites = lattice_Sites(β, IntegersSet, StarVecs, AlphasA, Precision)
-    @show length(LatticeSites)
 
     return LatticeSites
 end
@@ -142,7 +138,6 @@ function lattice_Sites(β::Int64,
     Precision::Type)
     #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
     SitesA = Vector{Precision}[]
-    @show length(StarVecs)
 
     #Consideramos todas las posibles combinaciones de vectores estrella con los posibles números enteros correspondientes
     for i in 1:length(StarVecs)

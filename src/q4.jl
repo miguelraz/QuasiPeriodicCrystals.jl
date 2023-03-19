@@ -66,22 +66,26 @@ function main_Cluster(NSides::Int64,
     AvgDist = fill(NSides / 2, NSides) #Array with the average spacing between stripes
 
     #Generate the sites of the local neighborhood around the "Site" of the QuasiCrystal
-    QCSites = local_Hood(β, AvgDist, StarVecs, AlphasA, Site, Precision)
-    unique!(QCSites)
-    @show Site
-    loopy = 0
+    QCSites = local_Hood(β, AvgDist, StarVecs, AlphasA, Site, Precision, RadiusCluster)
+    #@show length(QCSites)
+    #unique!(QCSites)
+    #@show length(QCSites)
 
-    MainClusterSites = Vector{Precision}[]
-    for e in QCSites
-        if loopy == 0
-            @show e
-            norm(e - Site)
-        end
-        if norm(e - Site) < RadiusCluster
-            push!(MainClusterSites, e)
-        end
-        loopy += 1
-    end
+    #@show Site
+    #loopy = 0
+
+    MainClusterSites = QCSites
+    #filter!(e -> norm(e - Site) < RadiusCluster, MainClusterSites)
+    #for e in QCSites
+    #    if loopy == 0
+    #        @show e
+    #norm(e - Site)
+    #    end
+    #if norm(e - Site) < RadiusCluster
+    #push!(MainClusterSites, e)
+    #end
+    #    loopy += 1
+    #end
 
     return MainClusterSites
 end
@@ -103,14 +107,14 @@ function local_Hood(β::Int64,
     AlphasA::Vector{Float64},
     #Site::Vector{Float64},
     Site::SVector{2,Float64},
-    Precision::Type)
+    Precision::T, RadiusCluster) where {T}
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
 
-    @show IntegersSet
+    #@show IntegersSet
     #A partir de los valores enteros aproximados, generamos la vecindad del arreglo cuasiperiódico que contenga al punto.
-    LatticeSites = lattice_Sites(β, IntegersSet, StarVecs, AlphasA, Precision)
-    @show length(LatticeSites)
+    LatticeSites = lattice_Sites(β, IntegersSet, StarVecs, AlphasA, Precision, Site, RadiusCluster)
+    #@show length(LatticeSites)
 
     return LatticeSites
 end
@@ -148,35 +152,41 @@ function lattice_Sites(β::Int64,
     #StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64},
-    Precision::Type)
+    Precision::T, Site, RadiusCluster) where {T}
     #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
-    SitesA = SVector{2,Precision}[]
-    @assert length(StarVecs) == 7 "StarVecs is len 7"
+    SitesA = Set{SVector{2,Precision}}()
+    #@assert length(StarVecs) == 7 "StarVecs is len 7"
 
     #Consideramos todas las posibles combinaciones de vectores estrella con los posibles números enteros correspondientes
     for i in 1:length(StarVecs)
         for j in i+1:length(StarVecs)
             #Consideramos el margen de error a cada número entero
+            if iseven(length(StarVecs)) && (i == (j + length(StarVecs) ÷ 2))
+                continue
+            end
             for n in -β:β
                 for m in -β:β
                     #Vamos a dejar que el try ... catch se encargue de los casos en que los vectores estrella sean paralelos
                     #try
                     #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
-                    if iseven(length(StarVecs)) && (i == (j + length(StarVecs) ÷ 2))
-                        continue
-                    end
                     t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
-                    push!(SitesA, t0)
-                    push!(SitesA, t1)
-                    push!(SitesA, t2)
-                    push!(SitesA, t3)
+                    for t in (t0, t1, t2, t3)
+                        if norm(t - Site) < RadiusCluster
+                            push!(SitesA, t)
+                        end
+                    end
+                    #append!(SitesA, (t0, t1, t2, t3))
+                    #push!(SitesA, t0)
+                    #push!(SitesA, t1)
+                    #push!(SitesA, t2)
+                    #push!(SitesA, t3)
                 end
             end
 
         end
     end
 
-    @assert length(SitesA) > 0 "SitesA is empty"
+    #@assert length(SitesA) > 0 "SitesA is empty"
     return SitesA
 end
 
@@ -214,9 +224,9 @@ function four_Regions(J::Int64,
         T0 = Nj * Ej + Nk * Ek
 
         #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
-        for i in 1:length(StarVecs)
+        for i in eachindex(StarVecs)
             if i == J || i == K
-                nothing
+                continue
             else
                 FactorEi = (FactorEj / AreaJK) * (dot_Product(EkOrt, StarVecs[i])) - (FactorEk / AreaJK) * (dot_Product(EjOrt, StarVecs[i]))
                 T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
