@@ -19,12 +19,14 @@ RadiusCluster = 120.0;
 
 # 3.66s, 52M allocs, 2.1Gb, 33% GC time
 # length(MainClusterSites) == 56625
+@show Precision
 @time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
 @time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
 @show length(MainClusterSites)
-@assert length(MainClusterSites) == 56625 "BigFloat does not pass"
-@show "BigFloat"
+@assert length(MainClusterSites) == 56625 "BigFloat FAIL"
 Precision = Float64
+@show Precision
 @time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
 @time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
-@assert length(MainClusterSites) == 152003 "BigFloat passes"
+@show length(MainClusterSites)
+@assert length(MainClusterSites) == 152003 "Float64 FAIL"

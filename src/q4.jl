@@ -47,20 +47,20 @@ end
 #"Site" es el punto alrededor de donde se va a generar la vecindad.
 #"RadiusCluster" es el radio del cluster central que se conoce a priori es posible con el valor de \beta.
 function main_Cluster(NSides::Int64,
-    Precision::Type,
+    Precision::T,
     α::Float64,
     β::Int64,
     #Site::Vector{Float64},
     Site::SVector{2,Float64},
-    RadiusCluster::Float64)
+    RadiusCluster::Float64) where {T}
     #StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
     #for i in 1:NSides
     #    StarVecs[i] = [Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))] #Vertices of the polygon with "NSides" sides
     #end
-    StarVecs = [SVector{2,Precision}(0, 0) for i in 1:NSides] #Arrangement that will contain the star vectors
-    for i in 1:NSides
-        StarVecs[i] = SVector{2,Precision}(Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))) #Vertices of the polygon with "NSides" sides
-    end
+    #StarVecs = SVector{2, Precision}[SVector{2,Precision}(0, 0) for i in 1:NSides] #Arrangement that will contain the star vectors
+    #for i in 1:NSides
+    StarVecs = SVector{2,Precision}[(Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))) for i in 1:NSides] #Vertices of the polygon with "NSides" sides
+    #end
 
     AlphasA = fill(α, NSides) #Array with the alpha constants of the GDM
     AvgDist = fill(NSides / 2, NSides) #Array with the average spacing between stripes
@@ -132,7 +132,7 @@ function approx_Integers(Site::SVector{2,Float64},
     IntegersA = Vector{Int64}(undef, length(StarVecs))
 
     #Para cada vector estrella, proyectamos el sitio sobre dicho vector y reescalamos con la separación entre las franjas cuasiperiódicas.
-    for i in 1:length(StarVecs)
+    for i in eachindex(StarVecs)
         Projection = dot_Product(Site, StarVecs[i] / norm(StarVecs[i])) / AvgDist[i]
         IntegersA[i] = Int64(round(Projection))
     end
@@ -162,6 +162,7 @@ function lattice_Sites(β::Int64,
         for j in i+1:length(StarVecs)
             #Consideramos el margen de error a cada número entero
             if iseven(length(StarVecs)) && (i == (j + length(StarVecs) ÷ 2))
+                # Ej y Ek no pueden serr paralelos
                 continue
             end
             for n in -β:β
@@ -171,7 +172,8 @@ function lattice_Sites(β::Int64,
                     #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
                     t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
                     for t in (t0, t1, t2, t3)
-                        if norm(t - Site) < RadiusCluster
+                        #if norm(t - Site) < RadiusCluster
+                        if (t[1] - Site[1])^2 + (t[2] - Site[2])^2 < RadiusCluster^2
                             push!(SitesA, t)
                         end
                     end
@@ -182,10 +184,8 @@ function lattice_Sites(β::Int64,
                     #push!(SitesA, t3)
                 end
             end
-
         end
     end
-
     #@assert length(SitesA) > 0 "SitesA is empty"
     return SitesA
 end
@@ -202,44 +202,44 @@ function four_Regions(J::Int64,
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64})
     #Verifiquemos si los vectores a considerar son colineales, en cuyo caso manda un error.
-    if (length(StarVecs) % 2 == 0) && (K == J + length(StarVecs) / 2)
-        error("Los vectores Ej y Ek no pueden ser paralelos")
-    else
-        #Definimos los dos vectores con los que se consigue la intersección en la malla generada por los vectores estrella que estamos considerando.
-        Ej = StarVecs[J]
-        Ek = StarVecs[K]
+    #if (length(StarVecs) % 2 == 0) && (K == J + length(StarVecs) / 2)
+    #    error("Los vectores Ej y Ek no pueden ser paralelos")
+    #else
+    #Definimos los dos vectores con los que se consigue la intersección en la malla generada por los vectores estrella que estamos considerando.
+    Ej = StarVecs[J]
+    Ek = StarVecs[K]
 
-        #Obtenemos los vectores ortogonales a estos dos vectores.
-        EjOrt = orthogonal_Vec(Ej)
-        EkOrt = orthogonal_Vec(Ek)
+    #Obtenemos los vectores ortogonales a estos dos vectores.
+    EjOrt = orthogonal_Vec(Ej)
+    EkOrt = orthogonal_Vec(Ek)
 
-        #Definimos los valores reales con los que se crearon las rectas ortogonales a cada vector Ej y Ek para tomar la intersección.
-        FactorEj = Nj + AlphasA[J]
-        FactorEk = Nk + AlphasA[K]
+    #Definimos los valores reales con los que se crearon las rectas ortogonales a cada vector Ej y Ek para tomar la intersección.
+    FactorEj = Nj + AlphasA[J]
+    FactorEk = Nk + AlphasA[K]
 
-        #Obtenemos el área que forman los dos vectores Ej y Ek.
-        AreaJK = Ej[1] * Ek[2] - Ej[2] * Ek[1]
+    #Obtenemos el área que forman los dos vectores Ej y Ek.
+    AreaJK = Ej[1] * Ek[2] - Ej[2] * Ek[1]
+    invAreaJK = 1 / AreaJK
 
-        #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
-        T0 = Nj * Ej + Nk * Ek
+    #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
+    T0 = Nj * Ej + Nk * Ek
 
-        #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
-        for i in eachindex(StarVecs)
-            if i == J || i == K
-                continue
-            else
-                FactorEi = (FactorEj / AreaJK) * (dot_Product(EkOrt, StarVecs[i])) - (FactorEk / AreaJK) * (dot_Product(EjOrt, StarVecs[i]))
-                T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
-            end
+    #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
+    for i in eachindex(StarVecs)
+        if i == J || i == K
+            continue
+        else
+            FactorEi = (invAreaJK) * (FactorEj * (dot_Product(EkOrt, StarVecs[i])) - FactorEk * (dot_Product(EjOrt, StarVecs[i])))
+            T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
         end
-
-        #Obtenemos los otros tres vértices asociados al punto t^{0}.
-        T1 = T0 - Ej
-        T2 = T0 - Ej - Ek
-        T3 = T0 - Ek
-
-        return T0, T1, T2, T3
     end
+
+    #Obtenemos los otros tres vértices asociados al punto t^{0}.
+    T1 = T0 - Ej
+    T2 = T0 - Ej - Ek
+    T3 = T0 - Ek
+
+    return T0, T1, T2, T3
 end
 #=
 ################################################################################################################################

@@ -212,7 +212,7 @@ function four_Regions(J::Int64,
         T0 = Nj * Ej + Nk * Ek
 
         #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
-        for i in 1:length(StarVecs)
+        for i in eachindex(StarVecs)
             if i == J || i == K
                 nothing
             else

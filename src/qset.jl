@@ -2,19 +2,19 @@
 ############################################################# COMMON FUNCTIONS ###############################################
 ##############################################################################################################################
 
-function dot_Product(A::Union{Vector{Float64},Vector{BigFloat}},
-    B::Union{Vector{Float64},Vector{BigFloat}})
+function dot_Product(A::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}},
+    B::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}})
     return A[1] * B[1] + A[2] * B[2]
 end
 
-function orthogonal_Vec(A::Union{Vector{Float64},Vector{BigFloat}})
+function orthogonal_Vec(A::Union{Vector{Float64},Vector{BigFloat},SVector{2,Float64},SVector{2,BigFloat}})
     return [A[2], -A[1]]
 end
 
 #Función que nos genera un punto aleatorio en un cuadrado de semilado SL centrado en el origen.
 function arb_Point(SL::Float64)
     #Definimos la variable Site que contendrá las coordenadas del punto de interés
-    Site = Vector{Float64}(undef, 2)
+    Site = MVector{2,Float64}([0.0, 0.0])
 
     #Llaves para determinar el cuadrante donde estará el punto
     x = rand()
@@ -34,7 +34,7 @@ function arb_Point(SL::Float64)
         Site[2] = -rand() * SL
     end
 
-    return Site
+    return SVector{2,Float64}(Site)
 end
 
 
@@ -47,14 +47,18 @@ end
 #"Site" es el punto alrededor de donde se va a generar la vecindad.
 #"RadiusCluster" es el radio del cluster central que se conoce a priori es posible con el valor de \beta.
 function main_Cluster(NSides::Int64,
-    Precision::Type,
+    Precision::T,
     α::Float64,
     β::Int64,
-    Site::Vector{Float64},
-    RadiusCluster::Float64)
-    StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
+    Site::SVector{2,Float64},
+    RadiusCluster::Float64) where {T}
+    # StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
+    # for i in 1:NSides
+    #     StarVecs[i] = [Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))] #Vertices of the polygon with "NSides" sides
+    # end
+    StarVecs = [SVector{2,Precision}((0, 0)) for i in 1:NSides] #Arrangement that will contain the star vectors
     for i in 1:NSides
-        StarVecs[i] = [Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))] #Vertices of the polygon with "NSides" sides
+        StarVecs[i] = SVector{2,Precision}([Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))]) #Vertices of the polygon with "NSides" sides
     end
 
     AlphasA = fill(α, NSides) #Array with the alpha constants of the GDM
@@ -65,7 +69,7 @@ function main_Cluster(NSides::Int64,
     #unique!(QCSites)
     #loopy = 0
 
-    MainClusterSites = QCSites |> collect
+    MainClusterSites = QCSites
     #=
     for e in QCSites
         if loopy == 0
@@ -93,9 +97,9 @@ end
 #"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64.
 function local_Hood(β::Int64,
     AvgDist::Vector{Float64},
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64},
-    Site::Vector{Float64},
+    Site::SVector{2,Float64},
     Precision, RadiusCluster)
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
@@ -113,7 +117,7 @@ end
 #"StarVecs" son los vectores estrella del GDM.
 function approx_Integers(Site::Vector{Float64},
     AvgDist::Vector{Float64},
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}})
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}})
     #Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
     IntegersA = Vector{Int64}(undef, length(StarVecs))
 
@@ -135,11 +139,11 @@ end
 #"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64
 function lattice_Sites(β::Int64,
     IntegersA::Vector{Int64},
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64},
     Precision, Site, RadiusCluster)
     #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
-    SitesA = Set{Vector{Precision}}()
+    SitesA = Set{SVector{2,Precision}}()
 
     #Consideramos todas las posibles combinaciones de vectores estrella con los posibles números enteros correspondientes
 
@@ -158,7 +162,10 @@ function lattice_Sites(β::Int64,
                     #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
                     t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
                     for t in (t0, t1, t2, t3)
+                        # TODO - try to square with formula below!!!
                         if norm(t - Site) < RadiusCluster
+                            #if (t[1] - Site[1])^2 + (t[2] - Site[2])^2 < RadiusCluster^2
+                            #global _t = (t, Site)
                             push!(SitesA, t)
                         end
                     end
@@ -185,7 +192,7 @@ function four_Regions(J::Int64,
     K::Int64,
     Nj::Int64,
     Nk::Int64,
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
     AlphasA::Vector{Float64})
     #Verifiquemos si los vectores a considerar son colineales, en cuyo caso manda un error.
     #if (length(StarVecs) % 2 == 0) && (K == J + length(StarVecs) / 2)
@@ -210,7 +217,7 @@ function four_Regions(J::Int64,
     T0 = Nj * Ej + Nk * Ek
 
     #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
-    for i in 1:length(StarVecs)
+    for i in eachindex(StarVecs)
         if i == J || i == K
             nothing
         else
