@@ -1,4 +1,5 @@
 using LinearAlgebra
+using MutableArithmetics
 using Random
 using StaticArrays
 using Test
@@ -13,6 +14,7 @@ SL = 1e6
 NSides = 7
 Precision = BigFloat;
 α = 0.0
+# \beta = 34 # also works!
 β = 40;
 APoint = arb_Point(SL)
 RadiusCluster = 120.0;
@@ -30,3 +32,9 @@ Precision = Float64
 @time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
 @show length(MainClusterSites)
 @assert length(MainClusterSites) == 152003 "Float64 FAIL"
+#Precision = Float32
+#@show Precision
+#@time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
+#@time MainClusterSites = main_Cluster(NSides, Precision, α, β, APoint, RadiusCluster);
+#@show length(MainClusterSites)
+#@assert length(MainClusterSites) == 152003 "Float64 FAIL"

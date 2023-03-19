@@ -157,6 +157,7 @@ function lattice_Sites(β::Int64,
     SitesA = Set{SVector{2,Precision}}()
     #@assert length(StarVecs) == 7 "StarVecs is len 7"
 
+    R2 = RadiusCluster^2
     #Consideramos todas las posibles combinaciones de vectores estrella con los posibles números enteros correspondientes
     for i in 1:length(StarVecs)
         for j in i+1:length(StarVecs)
@@ -173,8 +174,14 @@ function lattice_Sites(β::Int64,
                     t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
                     for t in (t0, t1, t2, t3)
                         #if norm(t - Site) < RadiusCluster
-                        if (t[1] - Site[1])^2 + (t[2] - Site[2])^2 < RadiusCluster^2
-                            push!(SitesA, t)
+                        # TODO - Buffer dem bigfloats babyyyy
+                        temp1 = (t[1] - Site[1])^2
+                        if temp1 > R2
+                            continue
+                        else
+                            if temp1 + (t[2] - Site[2])^2 < R2
+                                push!(SitesA, t)
+                            end
                         end
                     end
                     #append!(SitesA, (t0, t1, t2, t3))
@@ -222,7 +229,9 @@ function four_Regions(J::Int64,
     invAreaJK = 1 / AreaJK
 
     #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
+
     T0 = Nj * Ej + Nk * Ek
+    #buffer = MutableArithmetics(MutableArithmetics.add_mul, )
 
     #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
     for i in eachindex(StarVecs)
@@ -230,13 +239,17 @@ function four_Regions(J::Int64,
             continue
         else
             FactorEi = (invAreaJK) * (FactorEj * (dot_Product(EkOrt, StarVecs[i])) - FactorEk * (dot_Product(EjOrt, StarVecs[i])))
-            T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
+            if eltype(T0) == Float64
+                T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
+            else
+                MutableArithmetics.buffered_operate!!(T0, MutableArithmetics.add_mul, floor(FactorEi - AlphasA[i]), T0, StarVecs[i])
+            end
         end
     end
 
     #Obtenemos los otros tres vértices asociados al punto t^{0}.
     T1 = T0 - Ej
-    T2 = T0 - Ej - Ek
+    T2 = T1 - Ek
     T3 = T0 - Ek
 
     return T0, T1, T2, T3

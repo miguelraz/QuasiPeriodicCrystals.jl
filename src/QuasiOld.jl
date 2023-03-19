@@ -1,21 +1,53 @@
 module QuasiPeriodicCrystals
-# Rewrite of q4.jl by hand
 # TODO - USE STATIC ARRAYS JFC
 __precompile__(false)
 using LinearAlgebra
-using StaticArrays
-
 
 # Write your package code here.
-dot_Product(A, B) = A ⋅ B
+function dot_Product(A::AbstractVector{S}, B::AbstractVector{T}) where {T,S}
+    A[1] * B[1] + A[2] * B[2]
+end
+function dot_Product(A::Tuple{T,T}, B::AbstractVector{S}) where {T,S}
+    A[1] * B[1] + A[2] + B[2]
+end
+function dot_Product(A::Tuple{T,T}, B::Tuple{T,T}) where {T}
+    A[1] * B[1] + A[2] + B[2]
+end
+function dot_Product(A::AbstractVector{S}, B::Tuple{T,T}) where {T,S}
+    A[1] * B[1] + A[2] + B[2]
+end
 
-orthogonal_Vec(A::T) where {T} = @inbounds T(A[2], -A[1])
+Base.:/(t::Tuple{BigFloat,BigFloat}, b::T) where {T<:AbstractFloat} = (t[1] / b, t[2] / b)
+Base.:/(t::Tuple{T,T}, b::T) where {T<:AbstractFloat} = (t[1] / b, t[2] / b)
+
+Base.:*(t::Tuple{T,T}, b::Int) where {T<:AbstractFloat} = (t[1] * b, t[2] * b)
+Base.:*(b::Int, t::Tuple{T,T}) where {T<:AbstractFloat} = (t[1] * b, t[2] * b)
+Base.:*(b::T, t::Tuple{T,T}) where {T<:AbstractFloat} = (t[1] * b, t[2] * b)
+
+Base.:+(x::Tuple{T,T}, y::Tuple{T,T}) where {T<:AbstractFloat} = (x[1] + y[1], x[2] + y[2])
+Base.:+(t::Tuple{T,T}, b::Int) where {T<:AbstractFloat} = (t[1] + b, t[2] + b)
+Base.:+(b::Int, t::Tuple{T,T}) where {T<:AbstractFloat} = (t[1] + b, t[2] + b)
+
+Base.:-(x::Tuple{T,T}, y::Tuple{T,T}) where {T<:AbstractFloat} = (x[1] - y[1], x[2] - y[2])
+Base.:-(t::Tuple{T,T}, b::Int) where {T<:AbstractFloat} = (t[1] - b, t[2] - b)
+Base.:-(b::Int, t::Tuple{T,T}) where {T<:AbstractFloat} = (b - t[1], b - t[2])
+Base.:-(b::BigFloat, t::Tuple{T,T}) where {T<:AbstractFloat} = (b - t[1], b - t[2])
+Base.:-(t::Tuple{BigFloat,BigFloat}, b::Vector{Float64}) = (t[1] - b, t[2] - b)
+Base.:-(t::Tuple{T,T}, b::Vector{T}) where {T<:AbstractFloat} = (t[1] - b, t[2] - b)
+Base.:-(b::BigFloat, t::Vector{T}) where {T<:AbstractFloat} = (b - t[1], b - t[2])
+
+function orthogonal_Vec(A::AbstractVector{T}) where {T}
+    return (A[2], -A[1])
+end
+function orthogonal_Vec(A::Tuple{T,T}) where {T}
+    return (A[2], -A[1])
+end
 
 
 #Función que nos genera un punto aleatorio en un cuadrado de semilado SL centrado en el origen.
 function arb_Point(SL::T) where {T<:AbstractFloat}
     #Definimos la variable Site que contendrá las coordenadas del punto de interés
-    Site = SVector{T}(undef, 2)
+    Site = Vector{T}(undef, 2)
 
     #Llaves para determinar el cuadrante donde estará el punto
     x = rand()
@@ -38,27 +70,6 @@ function arb_Point(SL::T) where {T<:AbstractFloat}
     return Site
 end
 arb_Point2(SL::T) where {T<:AbstractFloat} = (rand() * SL - 2SL, SL * rand() - 2SL)
-struct FourRegionCache
-    StarVecs
-    OrtStarVecs
-    FactorsEj
-    FactorsEk
-    invAreajk
-
-end
-struct SearchParams{T,U,B,V,W}
-    NSides::Int
-    StarVecs
-    norm_StarVecs
-    Site::T
-    RadiusCluster2::U
-    α::V
-    AvgDist::S
-    β::B
-    IntegerBounds::W
-    FourRegionCache
-end
-
 
 function main_Cluster(NSides, Precision, α, β::Int, Site, RadiusCluster)
     #StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
