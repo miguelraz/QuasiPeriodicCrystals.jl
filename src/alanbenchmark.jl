@@ -4,9 +4,9 @@ using Random
 using StaticArrays
 using Test
 #include("voronoi.jl")
-include("q4.jl")
+#include("q4.jl")
 #include("quasi2.jl")
-#include("Quasicrystals.jl")
+include("Quasicrystals.jl")
 #include("qset.jl")
 #using QuasiPeriodicCrystals
 Random.seed!(42)

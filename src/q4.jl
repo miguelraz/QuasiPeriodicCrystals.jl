@@ -62,8 +62,8 @@ function main_Cluster(NSides::Int64,
     StarVecs = SVector{2,Precision}[(Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))) for i in 1:NSides] #Vertices of the polygon with "NSides" sides
     #end
 
-    AlphasA = fill(α, NSides) #Array with the alpha constants of the GDM
-    AvgDist = fill(NSides / 2, NSides) #Array with the average spacing between stripes
+    AlphasA = @SVector fill(α, NSides) #Array with the alpha constants of the GDM
+    AvgDist = @SVector fill(NSides / 2, NSides) #Array with the average spacing between stripes
 
     #Generate the sites of the local neighborhood around the "Site" of the QuasiCrystal
     QCSites = local_Hood(β, AvgDist, StarVecs, AlphasA, Site, Precision, RadiusCluster)
@@ -101,13 +101,13 @@ end
 #"Site" es el punto alrededor de donde se va a generar la vecindad.
 #"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64.
 function local_Hood(β::Int64,
-    AvgDist::Vector{Float64},
+    AvgDist::Union{Vector{Float64},SVector{N,Float64}},
     #StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
-    AlphasA::Vector{Float64},
+    AlphasA::Union{SVector{N,Float64},Vector{Float64}},
     #Site::Vector{Float64},
     Site::SVector{2,Float64},
-    Precision::T, RadiusCluster) where {T}
+    Precision::T, RadiusCluster) where {T,N}
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
 
@@ -125,9 +125,9 @@ end
 #"AvgDist" es la separación promedio entre las franjas cuasiperiódicas.
 #"StarVecs" son los vectores estrella del GDM.
 function approx_Integers(Site::SVector{2,Float64},
-    AvgDist::Vector{Float64},
+    AvgDist::Union{Vector{Float64},SVector{N,Float64}},
     #StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}})
-    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}})
+    StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}}) where {N}
     #Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
     IntegersA = Vector{Int64}(undef, length(StarVecs))
 
@@ -148,11 +148,11 @@ end
 #"AlphasA" son los valores de la separación respecto al origen del conjunto de rectas ortogonales a los vectores estrella.
 #"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64
 function lattice_Sites(β::Int64,
-    IntegersA::Vector{Int64},
+    IntegersA::Union{Vector{Int64},SVector{2,Float64}},
     #StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}}},
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
-    AlphasA::Vector{Float64},
-    Precision::T, Site, RadiusCluster) where {T}
+    AlphasA::Union{Vector{Float64},SVector{N,Float64}},
+    Precision::T, Site, RadiusCluster) where {T,N}
     #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
     SitesA = Set{SVector{2,Precision}}()
     #@assert length(StarVecs) == 7 "StarVecs is len 7"
@@ -207,7 +207,7 @@ function four_Regions(J::Int64,
     Nj::Int64,
     Nk::Int64,
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}},
-    AlphasA::Vector{Float64})
+    AlphasA::Union{Vector{Float64},SVector{N,Float64}}) where {N}
     #Verifiquemos si los vectores a considerar son colineales, en cuyo caso manda un error.
     #if (length(StarVecs) % 2 == 0) && (K == J + length(StarVecs) / 2)
     #    error("Los vectores Ej y Ek no pueden ser paralelos")
@@ -241,8 +241,9 @@ function four_Regions(J::Int64,
             FactorEi = (invAreaJK) * (FactorEj * (dot_Product(EkOrt, StarVecs[i])) - FactorEk * (dot_Product(EjOrt, StarVecs[i])))
             if eltype(T0) == Float64
                 T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
-            else
-                MutableArithmetics.buffered_operate!!(T0, MutableArithmetics.add_mul, floor(FactorEi - AlphasA[i]), T0, StarVecs[i])
+            elseif eltype(T0) == BigFloat
+                #MutableArithmetics.buffered_operate!!(T0, MutableArithmetics.add_mul, floor(FactorEi - AlphasA[i]), T0, StarVecs[i])
+                T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
             end
         end
     end

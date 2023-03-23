@@ -115,7 +115,7 @@ end
 #"Site" son las coordenadas de un punto en el espacio 2D.
 #"AvgDist" es la separación promedio entre las franjas cuasiperiódicas.
 #"StarVecs" son los vectores estrella del GDM.
-function approx_Integers(Site::Vector{Float64},
+function approx_Integers(Site::Union{Vector{Float64},SVector{2,Float64}},
     AvgDist::Vector{Float64},
     StarVecs::Union{Vector{Vector{BigFloat}},Vector{Vector{Float64}},Vector{SVector{2,Float64}},Vector{SVector{2,BigFloat}}})
     #Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
@@ -212,6 +212,7 @@ function four_Regions(J::Int64,
 
     #Obtenemos el área que forman los dos vectores Ej y Ek.
     AreaJK = Ej[1] * Ek[2] - Ej[2] * Ek[1]
+    invareajk = 1 / areajk
 
     #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
     T0 = Nj * Ej + Nk * Ek
@@ -221,14 +222,15 @@ function four_Regions(J::Int64,
         if i == J || i == K
             nothing
         else
-            FactorEi = (FactorEj / AreaJK) * (dot_Product(EkOrt, StarVecs[i])) - (FactorEk / AreaJK) * (dot_Product(EjOrt, StarVecs[i]))
+            #FactorEi = (FactorEj / AreaJK) * (dot_Product(EkOrt, StarVecs[i])) - (FactorEk / AreaJK) * (dot_Product(EjOrt, StarVecs[i]))
+            FactorEi = (invAreaJK) * (FactorEj * (dot_Product(EkOrt, StarVecs[i])) - FactorEk * (dot_Product(EjOrt, StarVecs[i])))
             T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
         end
     end
 
     #Obtenemos los otros tres vértices asociados al punto t^{0}.
     T1 = T0 - Ej
-    T2 = T0 - Ej - Ek
+    T2 = T1 - Ek
     T3 = T0 - Ek
 
     return T0, T1, T2, T3

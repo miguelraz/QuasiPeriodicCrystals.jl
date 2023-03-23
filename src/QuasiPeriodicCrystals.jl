@@ -4,160 +4,132 @@ module QuasiPeriodicCrystals
 __precompile__(false)
 using LinearAlgebra
 using StaticArrays
+using MutableArithmetics
+using Quadmath
+using DoubleFloats
+using FillArrays
 
 
-# Write your package code here.
+# TODO - cached version for bigfloats?
 dot_Product(A, B) = A ⋅ B
 
 orthogonal_Vec(A::T) where {T} = @inbounds T(A[2], -A[1])
 
-
 #Función que nos genera un punto aleatorio en un cuadrado de semilado SL centrado en el origen.
 function arb_Point(SL::T) where {T<:AbstractFloat}
     #Definimos la variable Site que contendrá las coordenadas del punto de interés
-    Site = SVector{T}(undef, 2)
-
-    #Llaves para determinar el cuadrante donde estará el punto
-    x = rand()
-    y = rand()
-
-    if (x > 0.5) && (y > 0.5)
-        Site[1] = rand() * SL
-        Site[2] = rand() * SL
-    elseif (x > 0.5) && (y < 0.5)
-        Site[1] = rand() * SL
-        Site[2] = -rand() * SL
-    elseif (x < 0.5) && (y > 0.5)
-        Site[1] = -rand() * SL
-        Site[2] = rand() * SL
-    elseif (x < 0.5) && (y < 0.5)
-        Site[1] = -rand() * SL
-        Site[2] = -rand() * SL
-    end
-
+    Site = @SVector [T(rand() * SL - 2SL), T(rand() * SL - 2SL)]
     return Site
 end
-arb_Point2(SL::T) where {T<:AbstractFloat} = (rand() * SL - 2SL, SL * rand() - 2SL)
-struct FourRegionCache
-    StarVecs
-    OrtStarVecs
-    FactorsEj
-    FactorsEk
-    invAreajk
-
-end
-struct SearchParams{T,U,B,V,W}
-    NSides::Int
-    StarVecs
-    norm_StarVecs
-    Site::T
-    RadiusCluster2::U
-    α::V
-    AvgDist::S
-    β::B
-    IntegerBounds::W
-    FourRegionCache
-end
+#arb_Point2(SL::T) where {T<:AbstractFloat} = (rand() * SL - 2SL, SL * rand() - 2SL)
 
 
+make_starvecs(NSides, Precision) = SVector{2,Precision}[(Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))) for i in 1:NSides]
+
+"""
+Función que genera los arreglos X y Y con las coordenadas de las teselas que conforman el cluster central alrededor de un punto del arreglo
+cuasiperiódico. Se requiere conocer el radio del main cluster a construir.
+
+`NSide::Int` -  es la simetría rotacional del arreglo cuasiperiódico deseado.
+`Precision::T` -  indica si trabajaremos con precisión BigFloat o precisión Float64.
+`α` -  es la separación entre las rectas ortogonales a los vectores estrella con respecto al origen del mallado G empleado en GDM.
+`β::Int` -  es el margen de error asociado a los números enteros generados por la proyección del punto sobre los vectores estrella.
+`Site` -  es el punto alrededor de donde se va a generar la vecindad.
+`RadiusCluster` -  es el radio del cluster central que se conoce a priori es posible con el valor de β.
+"""
 function main_Cluster(NSides, Precision, α, β::Int, Site, RadiusCluster)
-    #StarVecs = [Vector{Precision}(undef, 2) for i in 1:NSides] #Arrangement that will contain the star vectors
-    #for i in 1:NSides
-    #StarVecs[i] = [Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))] #Vertices of the polygon with "NSides" sides
-    #end
-    StarVecs = [(Precision(cos((2 * (i - 1)) * pi / NSides)), Precision(sin((2 * (i - 1)) * pi / NSides))) for i in 1:NSides]
+    StarVecs = make_starvecs(NSides, Precision)
 
+    AlphasA = Fill(α, NSides) #Array with the alpha constants of the GDM
+    AvgDist = Fill(NSides / 2, NSides) #Array with the average spacing between stripes
+    Cluster(NSides, Precision, StarVecs, Site, RadiusCluster, β, AvgDist, AlphasA)
+end
+struct Cluster{S, T, U}
+    const NSides::Int
+    const Precision::S
+    const StarVecs::AbstractVector{T}
+    const RadiusCluster::S
+    const Site::AbstractVector{S}
+    const β::Int
+    const AvgDist::AbstractVector{U}
+    const AlphasA::AbstractVector{U}
+end
 
-    AlphasA = fill(α, NSides) #Array with the alpha constants of the GDM
-    AvgDist = fill(NSides / 2, NSides) #Array with the average spacing between stripes
-
-    @assert length(StarVecs) == 7 "main_Cluster produces StarVecs of len 7"
+function cluster_Sites(Cluster, Site)
 
     #Generate the sites of the local neighborhood around the "Site" of the QuasiCrystal
-    QCSites = local_Hood(β, AvgDist, StarVecs, AlphasA, Site, Precision)
-    @assert length(QCSites) > 0 "QCSites non empty"
-    unique!(QCSites)
-    @assert length(QCSites) > 0 "QCSites not all same"
+    QCSites = local_Hood(RadiusCluster, Site)
 
-
-    inside_radius = 0
-    loopy = 0
-    MainClusterSites = Vector{Precision}[]
-    for e in QCSites
-        if loopy == 0
-            @show e
-            @show Site
-        end
-        if norm(e - Site) < RadiusCluster
-            push!(MainClusterSites, e)
-            inside_radius += 1
-        end
-        loopy += 1
-    end
     #@assert inside_radius > 0 "there was at least one inside radius"
+    MainClusterSites = QCSites
 
     return MainClusterSites
 end
 
 
-function approx_Integers(Site::AbstractVector{T}, AvgDist::AbstractVector{V}, StarVecs::AbstractVector{S}) where {T,V,S}
-    #Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
-    IntegersA = Vector{Int}(undef, length(StarVecs))
+"""
+Función que dado un Punto, obtiene aproximadamente los enteros asociados a la tesela del arreglo cuasiperiódico que lo contiene.
 
-    #Para cada vector estrella, proyectamos el sitio sobre dicho vector y reescalamos con la separación entre las franjas cuasiperiódicas.
-    for i in 1:length(StarVecs)
-        # Change 1
-        #Projection = dot_Product(Site, StarVecs[i] / norm(StarVecs[i])) / AvgDist[i]
-        Projection = dot_Product(Site, StarVecs[i] / norm(StarVecs[i])) / AvgDist[i]
-        IntegersA[i] = Int64(round(Projection))
-    end
+`Site` - son las coordenadas de un punto en el espacio 2D.
+`AvgDist` -  es la separación promedio entre las franjas cuasiperiódicas.
+`StarVecs` - son los vectores estrella del GDM.
 
-    return IntegersA
+Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
+Para cada vector estrella, proyectamos el sitio sobre dicho vector y reescalamos con la separación entre las franjas cuasiperiódicas.
+"""
+function approx_Integers(Cluster, Site::AbstractVector{S}) where S
+    Int[round(dot_Product(Site, Cluster.StarVecs[i] / norm(StarVecs[i])) / Cluster.AvgDist[i]) for i in 1:Cluster.NSides]
 end
 
-function local_Hood(β::Int64,
-    AvgDist::AbstractVector{T},
-    StarVecs::AbstractVector{S},
-    AlphasA::AbstractVector{T},
-    Site::AbstractVector{T},
-    Precision::V) where {T,S,V}
+
+"""
+
+Función que genera una vecindad de la retícula cuasiperiódica alrededor de un punto dado
+
+`β` - es el margen de error asociado a los números enteros generados por la proyección del punto sobre los vectores estrella.
+`AvgDist` - es la separación promedio entre las franjas cuasiperiódicas.
+`StarVecs` - son los vectores estrella del GDM.
+`AlphasA` - son los valores de la separación respecto al origen del conjunto de rectas ortogonales a los vectores estrella.
+`Site` - es el punto alrededor de donde se va a generar la vecindad.
+`Precision` - indica si trabajaremos con precisión BigFloat o precisión Float64.
+"""
+function local_Hood(Site::AbstractVector{T}, Cluster)
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
-    IntegersSet = approx_Integers(Site, AvgDist, StarVecs)
-    @show IntegersSet
-    @assert length(IntegersSet) > 0 "IntegerSet non empty"
-    @assert length(StarVecs) == 7 "lattice_sites receives StarVecs |> len != 7"
+    IntegersSet = approx_Integers(Cluster, Site)
 
     #A partir de los valores enteros aproximados, generamos la vecindad del arreglo cuasiperiódico que contenga al punto.
-    LatticeSites = lattice_Sites(β, IntegersSet, StarVecs, AlphasA, Precision)
+    LatticeSites = lattice_Sites(Cluster, Site, IntegersSet)
     @show length(LatticeSites)
     @assert length(LatticeSites) > 0 "Lattice_sites non empty"
 
     return LatticeSites
 end
-################################################################# LOCAL HOOD RIGHT BRANCH FUNCTIONS ################################
-#Función que genera los vértices de un arreglo cuasiperiódico asociados a la vecindad de un sitio arbitrario.
-#"\Beta" es el margen de error asociado a los números enteros generados por la proyección del punto sobre los vectores estrella.
-#"IntegersA" es el conjunto de números enteros candidatos a ser los que generan el polígono que contiene al punto.
-#"StarVecs" son los vectores estrella del GDM.
-#"AlphasA" son los valores de la separación respecto al origen del conjunto de rectas ortogonales a los vectores estrella.
-#"Precision" indica si trabajaremos con precisión BigFloat o precisión Float64
-function lattice_Sites(β::Int64,
-    IntegersA::AbstractVector{S},
-    StarVecs::AbstractVector{T},
-    AlphasA::AbstractArray{W,1},
-    Precision::V) where {T,S,V,W}
-    #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
-    SitesA = Tuple{Precision,Precision}[]
 
+"""
+Función que genera los vértices de un arreglo cuasiperiódico asociados a la vecindad de un sitio arbitrario.
+
+`β` - es el margen de error asociado a los números enteros generados por la proyección del punto sobre los vectores estrella.
+`IntegersA` - es el conjunto de números enteros candidatos a ser los que generan el polígono que contiene al punto.
+`StarVecs` - son los vectores estrella del GDM.
+`AlphasA` - son los valores de la separación respecto al origen del conjunto de rectas ortogonales a los vectores estrella.
+`Precision` - indica si trabajaremos con precisión BigFloat o precisión Float64
+"""
+function lattice_Sites(ClusterCache, Site, IntegersSet) where {S}
+    #Arreglo que contendrá a los vértices asociados a cada combinación de vectores estrella (con margen de error)
+    SitesA = Set{SVector{2,Precision}}([])
+
+    N = length(StarVecs)
+    iseven(N) && return SitesA
     #Consideramos todas las posibles combinaciones de vectores estrella con los posibles números enteros correspondientes
     global _c = [0, 0, 0, 0, 0, 0, 0]
     @assert length(StarVecs) == 7 "StarVecs has len != 7"
     @assert length(StarVecs) > 0 "lattice sites receives nonempty starvecss"
     pre = 0
     post = 0
-    for i in 1:length(StarVecs)
+    for i in 1:N
         _c[1] += 1
-        for j in i+1:length(StarVecs)
+        for j in i+1:N
+            i == (J + N ÷ 2) && continue
             _c[2] += 1
             #Consideramos el margen de error a cada número entero
             for n in -β:β
@@ -169,7 +141,7 @@ function lattice_Sites(β::Int64,
                     #Obtengamos los vértices de la tesela considerando los vectores Ei y Ej con sus respectivos números enteros
                     _c[5] += 1
                     pre += 1
-                    t0, t1, t2, t3 = four_Regions(i, j, IntegersA[i] + n, IntegersA[j] + m, StarVecs, AlphasA)
+                    t0, t1, t2, t3 = four_Regions(ClusterCache, i, j, IntegersSet[i] + n, IntegersSet[j] + m, AlphasA)
                     post += 1
                     _c[6] += 1
                     #@show typeof(t0)
@@ -193,40 +165,81 @@ function lattice_Sites(β::Int64,
     return SitesA
 end
 
+struct ClusterCache{T}
+    const NSides::Int
+    # TODO - Memoize this
+    #T0 :: T
+    const StarVecs::AbstractVector{T}
+    const OrtStarVecs::AbstractVector{T}
+    const invAreajk::AbstractVector{T}
+    const FactorsE_jk::AbstractArray{T, 2}
+    const FactorsEi::AbstractArray{T, 2}
+    const FactorsEk::AbstractArray{T, 2}
+end
 
-function four_Regions(J::Int, K::Int, Nj::Int, Nk::Int, StarVecs::AbstractVector{T}, AlphasA::AbstractVector{S}) where {T,S}
+function make_ClusterCache(Cluster)
+    β = Cluster.β
+    NS = Cluster.NSides
+    SV = Cluster.StarVecs
+    OSV = orthogonal_Vec.(SV)
+    FactorsE_jk = (-β:β) .* NS
+    invAreaJK = inv.([SV[i][1] * SV[j][2] - SV[j][2] * SV[i][1] for i in 1:NS, j in 1:NSides if i != j])
+    # ??? invAreaJK ?
+    FactorsEi = [invAreaJK[i, j] * (FactorsE_jk[i,j] * (dot_Product(OSV[i], StarVecs[i])) - FactorsE_jk[i, j] * (dot_Product(OSV[j], StarVecs[i]))) for i in 1:NS, j in 1:NS]
+    
+
+end
+
+"""
+Función que determina, fijando los vectores estrella Ej y Ek, fijando los enteros Nj y Nk, y para algún conjunto de constantes alfa, los cuatros puntos de una tesela.
+
+`J, K` - son los índices de los vectores estrella a considerar.
+`Nj, Nk` - son los enteros con los que se generan las rectas ortogonales a Ej y Ek.
+`StarVecs` - son los vectores estrella del GDM.
+`AlphasA` - son los valores de la separación respecto al origen del conjunto de rectas ortogonales a los vectores estrella.
+"""
+function four_Regions(ClusterCache, J, K, Nj, Nk, AlphasA) where {T,S}
     #Verifiquemos si los vectores a considerar son colineales, en cuyo caso manda un error.
     global _t = Any[0, 0, 0, 0, 0]
     _t[1] = length(StarVecs)
     _t[2] = K
     _t[3] = J
     _t[4] = length(StarVecs) / 2
-    if (length(StarVecs) % 2 == 0) && (K == J + length(StarVecs) / 2)
         _t[5] += 1
-        @assert true "never errors in fourr_regions"
-        error("Los vectores Ej y Ek no pueden ser paralelos")
-    else
         #Definimos los dos vectores con los que se consigue la intersección en la malla generada por los vectores estrella que estamos considerando.
-        Ej = StarVecs[J]
-        Ek = StarVecs[K]
+        # MEMO O(|N|), N == length(StarVecs)
+        Ej = ClusterCache.StarVecs[J]
+        Ek = ClusterCache.StarVecs[K]
 
         #Obtenemos los vectores ortogonales a estos dos vectores.
-        EjOrt = orthogonal_Vec(Ej)
-        EkOrt = orthogonal_Vec(Ek)
+        # MEMO O(|N|)
+        EjOrt = ClusterCache.EjOrt[J]
+        EkOrt = ClusterCache.EkOrt[K]
 
         #Definimos los valores reales con los que se crearon las rectas ortogonales a cada vector Ej y Ek para tomar la intersección.
+        # MEMO = O(2*|Nj| * J)
         FactorEj = Nj + AlphasA[J]
+        FactorsEj = FactorsEj[Nj, J]
+        # MEMO = O(2|Nk| * J)
         FactorEk = Nk + AlphasA[K]
+        FacctorsEk = FactorsEk[Nk, K]
 
         #Obtenemos el área que forman los dos vectores Ej y Ek.
+        # MEMO = O(N^2), N == length(StarVecs)
         AreaJK = Ej[1] * Ek[2] - Ej[2] * Ek[1]
+        # MEMO = O(N^2)
+        invAreaJK = 1/AreaJK[1, 2]
 
         #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
+        # MEMO = O(N^2)
+        T0 = NjEj_NkEk[J, K]
         T0 = Nj * Ej + Nk * Ek
+
+        FactorsEi = 
 
         #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
         @assert length(StarVecs) > 0 "non empty star vecs"
-        for i in 1:length(StarVecs)
+        for i in 1:N
             if i == J || i == K
                 nothing
             else
@@ -237,7 +250,7 @@ function four_Regions(J::Int, K::Int, Nj::Int, Nk::Int, StarVecs::AbstractVector
 
         #Obtenemos los otros tres vértices asociados al punto t^{0}.
         T1 = T0 - Ej
-        T2 = T0 - Ej - Ek
+        T2 = T1 - Ek
         T3 = T0 - Ek
 
         return T0, T1, T2, T3
