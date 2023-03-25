@@ -54,6 +54,7 @@ Sites_outputs = [[parse.(BigFloat, split(s, ',')) for s in eachline(x)] for x in
 #@test orthogonal_Vec([1, 2]) == (2, -1)
 #end
 
+@test 1 == 1
 
 #=
 # Tests de Alan
