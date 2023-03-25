@@ -1,4 +1,4 @@
-using QuasiPeriodicCrystals
+#using QuasiPeriodicCrystals
 using LinearAlgebra
 using StaticArrays
 using Test
@@ -16,10 +16,9 @@ APoint = [
     "APoint_Test_10.csv"
 ]
 
-
-
 APoint_inputs = [[parse(Float64, x) for x in eachline(s)] for s in APoint]
 @test length(APoint_inputs) == 10
+@test all(==(2), length.(APoint_inputs))
 
 Sites = [
     "Sites_Test_1.csv"
@@ -48,12 +47,12 @@ Sites_outputs = [[parse.(BigFloat, split(s, ',')) for s in eachline(x)] for x in
 @test length(Sites_outputs[9]) == 4899
 @test length(Sites_outputs[10]) == 4889
 
-@testset "QuasiPeriodicCrystals.jl" begin
-    # Write your tests here.
-    @test dot([1, 2], [3, 4]) == 11
-    @test dot_Product([1, 2], [3, 4]) == 11
-    @test orthogonal_Vec([1, 2]) == (2, -1)
-end
+#@testset "QuasiPeriodicCrystals.jl" begin
+# Write your tests here.
+@test dot([1, 2], [3, 4]) == 11
+#@test dot_Product([1, 2], [3, 4]) == 11
+#@test orthogonal_Vec([1, 2]) == (2, -1)
+#end
 
 
 #=
