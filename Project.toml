@@ -1,19 +1,19 @@
 name = "QuasiPeriodicCrystals"
 uuid = "3b68f936-7ca7-4d01-8649-6fbe85730bea"
 authors = ["miguelraz <miguelraz@ciencias.unam.mx\n> and contributors"]
-version = "1.0.0-DEV"
+version = "2.0.0"
 
 [deps]
-DoubleFloats = "497a8b3b-efae-58df-a0af-a86822472b78"
 FillArrays = "1a297f60-69ca-5386-bcde-b61e274b549b"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-MultiFloats = "bdf0d083-296b-4888-a5b6-7498122e68a5"
 MutableArithmetics = "d8a4904e-b15c-11e9-3269-09a3773c0cb0"
-Quadmath = "be4d8f0f-7fa4-5f49-b795-2f01399ab2dd"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
-julia = "1"
+FillArrays = "1.0"
+MutableArithmetics = "v1.2.3"
+StaticArrays = "v1.5.21"
+julia = "1.9"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

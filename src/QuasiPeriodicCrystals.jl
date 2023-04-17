@@ -4,10 +4,10 @@ module QuasiPeriodicCrystals
 __precompile__(false)
 using LinearAlgebra
 using StaticArrays
-using MutableArithmetics
-using Quadmath
-using DoubleFloats
-using FillArrays
+#using MutableArithmetics
+#using Quadmath
+#using DoubleFloats
+#using FillArrays
 
 
 # TODO - cached version for bigfloats?
@@ -44,15 +44,15 @@ function main_Cluster(NSides, Precision, α, β::Int, Site, RadiusCluster)
     AvgDist = Fill(NSides / 2, NSides) #Array with the average spacing between stripes
     Cluster(NSides, Precision, StarVecs, Site, RadiusCluster, β, AvgDist, AlphasA)
 end
-struct Cluster{S, T, U}
-    const NSides::Int
-    const Precision::S
-    const StarVecs::AbstractVector{T}
-    const RadiusCluster::S
-    const Site::AbstractVector{S}
-    const β::Int
-    const AvgDist::AbstractVector{U}
-    const AlphasA::AbstractVector{U}
+struct Cluster{S,T,U}
+    NSides::Int
+    Precision::S
+    StarVecs::AbstractVector{T}
+    RadiusCluster::S
+    Site::AbstractVector{S}
+    β::Int
+    AvgDist::AbstractVector{U}
+    AlphasA::AbstractVector{U}
 end
 
 function cluster_Sites(Cluster, Site)
@@ -77,7 +77,7 @@ Función que dado un Punto, obtiene aproximadamente los enteros asociados a la t
 Generemos un arreglo en donde irán los números reales resultado de proyectar el sitio con los vectores estrella.
 Para cada vector estrella, proyectamos el sitio sobre dicho vector y reescalamos con la separación entre las franjas cuasiperiódicas.
 """
-function approx_Integers(Cluster, Site::AbstractVector{S}) where S
+function approx_Integers(Cluster, Site::AbstractVector{S}) where {S}
     Int[round(dot_Product(Site, Cluster.StarVecs[i] / norm(StarVecs[i])) / Cluster.AvgDist[i]) for i in 1:Cluster.NSides]
 end
 
@@ -93,7 +93,7 @@ Función que genera una vecindad de la retícula cuasiperiódica alrededor de un
 `Site` - es el punto alrededor de donde se va a generar la vecindad.
 `Precision` - indica si trabajaremos con precisión BigFloat o precisión Float64.
 """
-function local_Hood(Site::AbstractVector{T}, Cluster)
+function local_Hood(Site::AbstractVector{T}, Cluster) where {T}
     #Dado el Punto proyectamos este con los StarVecs para obtener los enteros aproximados asociados al polígono contenedor.
     IntegersSet = approx_Integers(Cluster, Site)
 
@@ -166,15 +166,15 @@ function lattice_Sites(ClusterCache, Site, IntegersSet) where {S}
 end
 
 struct ClusterCache{T}
-    const NSides::Int
+    NSides::Int
     # TODO - Memoize this
     #T0 :: T
-    const StarVecs::AbstractVector{T}
-    const OrtStarVecs::AbstractVector{T}
-    const invAreajk::AbstractVector{T}
-    const FactorsE_jk::AbstractArray{T, 2}
-    const FactorsEi::AbstractArray{T, 2}
-    const FactorsEk::AbstractArray{T, 2}
+    StarVecs::AbstractVector{T}
+    OrtStarVecs::AbstractVector{T}
+    invAreajk::AbstractVector{T}
+    FactorsE_jk::AbstractArray{T,2}
+    FactorsEi::AbstractArray{T,2}
+    FactorsEk::AbstractArray{T,2}
 end
 
 function make_ClusterCache(Cluster)
@@ -185,8 +185,8 @@ function make_ClusterCache(Cluster)
     FactorsE_jk = (-β:β) .* NS
     invAreaJK = inv.([SV[i][1] * SV[j][2] - SV[j][2] * SV[i][1] for i in 1:NS, j in 1:NSides if i != j])
     # ??? invAreaJK ?
-    FactorsEi = [invAreaJK[i, j] * (FactorsE_jk[i,j] * (dot_Product(OSV[i], StarVecs[i])) - FactorsE_jk[i, j] * (dot_Product(OSV[j], StarVecs[i]))) for i in 1:NS, j in 1:NS]
-    
+    FactorsEi = [invAreaJK[i, j] * (FactorsE_jk[i, j] * (dot_Product(OSV[i], StarVecs[i])) - FactorsE_jk[i, j] * (dot_Product(OSV[j], StarVecs[i]))) for i in 1:NS, j in 1:NS]
+
 
 end
 
@@ -205,56 +205,55 @@ function four_Regions(ClusterCache, J, K, Nj, Nk, AlphasA) where {T,S}
     _t[2] = K
     _t[3] = J
     _t[4] = length(StarVecs) / 2
-        _t[5] += 1
-        #Definimos los dos vectores con los que se consigue la intersección en la malla generada por los vectores estrella que estamos considerando.
-        # MEMO O(|N|), N == length(StarVecs)
-        Ej = ClusterCache.StarVecs[J]
-        Ek = ClusterCache.StarVecs[K]
+    _t[5] += 1
+    #Definimos los dos vectores con los que se consigue la intersección en la malla generada por los vectores estrella que estamos considerando.
+    # MEMO O(|N|), N == length(StarVecs)
+    Ej = ClusterCache.StarVecs[J]
+    Ek = ClusterCache.StarVecs[K]
 
-        #Obtenemos los vectores ortogonales a estos dos vectores.
-        # MEMO O(|N|)
-        EjOrt = ClusterCache.EjOrt[J]
-        EkOrt = ClusterCache.EkOrt[K]
+    #Obtenemos los vectores ortogonales a estos dos vectores.
+    # MEMO O(|N|)
+    EjOrt = ClusterCache.EjOrt[J]
+    EkOrt = ClusterCache.EkOrt[K]
 
-        #Definimos los valores reales con los que se crearon las rectas ortogonales a cada vector Ej y Ek para tomar la intersección.
-        # MEMO = O(2*|Nj| * J)
-        FactorEj = Nj + AlphasA[J]
-        FactorsEj = FactorsEj[Nj, J]
-        # MEMO = O(2|Nk| * J)
-        FactorEk = Nk + AlphasA[K]
-        FacctorsEk = FactorsEk[Nk, K]
+    #Definimos los valores reales con los que se crearon las rectas ortogonales a cada vector Ej y Ek para tomar la intersección.
+    # MEMO = O(2*|Nj| * J)
+    FactorEj = Nj + AlphasA[J]
+    FactorsEj = FactorsEj[Nj, J]
+    # MEMO = O(2|Nk| * J)
+    FactorEk = Nk + AlphasA[K]
+    FacctorsEk = FactorsEk[Nk, K]
 
-        #Obtenemos el área que forman los dos vectores Ej y Ek.
-        # MEMO = O(N^2), N == length(StarVecs)
-        AreaJK = Ej[1] * Ek[2] - Ej[2] * Ek[1]
-        # MEMO = O(N^2)
-        invAreaJK = 1/AreaJK[1, 2]
+    #Obtenemos el área que forman los dos vectores Ej y Ek.
+    # MEMO = O(N^2), N == length(StarVecs)
+    AreaJK = Ej[1] * Ek[2] - Ej[2] * Ek[1]
+    # MEMO = O(N^2)
+    invAreaJK = 1 / AreaJK[1, 2]
 
-        #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
-        # MEMO = O(N^2)
-        T0 = NjEj_NkEk[J, K]
-        T0 = Nj * Ej + Nk * Ek
+    #Definimos lo que será el vértice en el espacio real de la retícula cuasiperiódica. Este vértice se denomina t^{0} en el artículo.
+    # MEMO = O(N^2)
+    T0 = NjEj_NkEk[J, K]
+    T0 = Nj * Ej + Nk * Ek
 
-        FactorsEi = 
+    FactorsEi =
 
-        #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
+    #Generamos los términos asociados a la proyección del vector Ej y Ek con los demás vectores estrella
         @assert length(StarVecs) > 0 "non empty star vecs"
-        for i in 1:N
-            if i == J || i == K
-                nothing
-            else
-                FactorEi = (FactorEj / AreaJK) * (dot_Product(EkOrt, StarVecs[i])) - (FactorEk / AreaJK) * (dot_Product(EjOrt, StarVecs[i]))
-                T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
-            end
+    for i in 1:N
+        if i == J || i == K
+            nothing
+        else
+            FactorEi = (FactorEj / AreaJK) * (dot_Product(EkOrt, StarVecs[i])) - (FactorEk / AreaJK) * (dot_Product(EjOrt, StarVecs[i]))
+            T0 += (floor(FactorEi - AlphasA[i])) * StarVecs[i]
         end
-
-        #Obtenemos los otros tres vértices asociados al punto t^{0}.
-        T1 = T0 - Ej
-        T2 = T1 - Ek
-        T3 = T0 - Ek
-
-        return T0, T1, T2, T3
     end
+
+    #Obtenemos los otros tres vértices asociados al punto t^{0}.
+    T1 = T0 - Ej
+    T2 = T1 - Ek
+    T3 = T0 - Ek
+
+    return T0, T1, T2, T3
 end
 
 export dot_Product, orthogonal_Vec, arb_Point

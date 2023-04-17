@@ -1,4 +1,4 @@
-#using QuasiPeriodicCrystals
+using QuasiPeriodicCrystals
 using LinearAlgebra
 using StaticArrays
 using Test
